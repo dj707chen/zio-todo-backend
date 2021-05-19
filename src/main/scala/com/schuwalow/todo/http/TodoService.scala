@@ -8,10 +8,14 @@ import org.http4s.circe._
 import org.http4s.dsl.Http4sDsl
 import zio._
 import zio.interop.catz._
+import zio.logging.log
 
 object TodoService {
 
-  def routes[R <: TodoRepository](rootUri: String): HttpRoutes[RIO[R, *]] = {
+  def routes[R <: TodoRepository]
+            (rootUri: String)
+            : HttpRoutes[RIO[R, *]] = {
+
     type TodoTask[A] = RIO[R, A]
 
     val dsl: Http4sDsl[TodoTask] = Http4sDsl[TodoTask]
@@ -29,9 +33,11 @@ object TodoService {
         } yield response
 
       case GET -> Root =>
+        log.info(s"--------------------------------------[TodoService.routes.of]-------------------------------------- Get")
         Ok(TodoRepository.getAll.map(_.map(TodoItemWithUri(rootUri, _))))
 
       case req @ POST -> Root =>
+        log.info(s"--------------------------------------[TodoService.routes.of]-------------------------------------- Post, req: $req")
         req.decode[TodoItemPostForm] { todoItemForm =>
           TodoRepository
             .create(todoItemForm)
@@ -40,6 +46,7 @@ object TodoService {
         }
 
       case DELETE -> Root / LongVar(id) =>
+        log.info(s"--------------------------------------[TodoService.routes.of]-------------------------------------- Delete, id=$id")
         for {
           item   <- TodoRepository.getById(TodoId(id))
           result <- item
@@ -48,9 +55,11 @@ object TodoService {
         } yield result
 
       case DELETE -> Root =>
+        log.info(s"--------------------------------------[TodoService.routes.of]-------------------------------------- Delete all")
         TodoRepository.deleteAll *> Ok()
 
       case req @ PATCH -> Root / LongVar(id) =>
+        log.info(s"--------------------------------------[TodoService.routes.of]-------------------------------------- Patch, id=$id")
         req.decode[TodoItemPatchForm] { updateForm =>
           for {
             update   <- TodoRepository.update(TodoId(id), updateForm)

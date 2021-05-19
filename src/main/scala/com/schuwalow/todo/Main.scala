@@ -12,32 +12,35 @@ import org.http4s.server.blaze.BlazeServerBuilder
 import org.http4s.server.middleware.CORS
 import zio.clock.Clock
 import zio.interop.catz._
+import zio.logging.log
 import zio.{ExitCode => ZExitCode, _}
 
 object Main extends App {
   type AppTask[A] = RIO[layers.AppEnv with Clock, A]
 
-  override def run(args: List[String]): ZIO[ZEnv, Nothing, ZExitCode] = {
+  // @formatter:off
+  override def run(args: List[String])
+                  : ZIO[ZEnv, Nothing, ZExitCode] = {
     val prog =
       for {
-        cfg    <- getAppConfig
-        _      <- logging.log.info(s"Starting with $cfg")
-        httpApp = Router[AppTask](
-                    "/todos" -> TodoService.routes(s"${cfg.http.baseUrl}/todos")
-                  ).orNotFound
-
-        _ <- runHttp(httpApp, cfg.http.port)
+        cfg <- getAppConfig
+        _   <- log.info(s"Starting with $cfg")
+               httpApp = Router[AppTask](
+                           "/todos" -> TodoService.routes(s"${cfg.http.baseUrl}/todos")
+                         ).orNotFound
+        _   <- runHttp(httpApp, cfg.http.port)
       } yield ZExitCode.success
 
     prog
       .provideSomeLayer[ZEnv](TodoRepository.withTracing(layers.live.appLayer))
       .orDie
   }
+  // @formatter:on
 
-  def runHttp[R <: Clock](
-    httpApp: HttpApp[RIO[R, *]],
-    port: Int
-  ): ZIO[R, Throwable, Unit] = {
+  def runHttp[R <: Clock]
+             (httpApp: HttpApp[RIO[R, *]],
+              port   : Int)
+             : ZIO[R, Throwable, Unit] = {
     type Task[A] = RIO[R, A]
     ZIO.runtime[R].flatMap { implicit rts =>
       BlazeServerBuilder
