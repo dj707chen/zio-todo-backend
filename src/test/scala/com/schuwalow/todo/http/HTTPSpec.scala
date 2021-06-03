@@ -6,6 +6,7 @@ import zio.interop.catz._
 import zio.test.Assertion._
 import zio.test._
 
+// @formatter:off
 object HTTPSpec {
 
   def request[F[_]](
@@ -22,10 +23,12 @@ object HTTPSpec {
   ): RIO[R, TestResult] =
     for {
       actual      <- actual
-      bodyResult  <- expectedBody
-                       .fold[RIO[R, TestResult]](
-                         assertM(actual.bodyText.compile.toVector)(isEmpty)
-                       )(expected => assertM(actual.as[A])(equalTo(expected)))
+      bodyResult  <- expectedBody.fold[RIO[R, TestResult]](
+                                     assertM(actual.bodyText.compile.toVector)
+                                            (isEmpty)
+                                  )(expected => assertM(actual.as[A])
+                                                       (equalTo(expected))
+                                  )
       statusResult = assert(actual.status)(equalTo(expectedStatus))
     } yield bodyResult && statusResult
 
@@ -34,4 +37,6 @@ object HTTPSpec {
     expectedStatus: Status,
     expectedBody: String
   ): RIO[R, TestResult] = checkRequest(actual, expectedStatus, Some(expectedBody))
+
 }
+// @formatter:on

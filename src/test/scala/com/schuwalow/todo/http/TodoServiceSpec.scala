@@ -1,5 +1,6 @@
 package com.schuwalow.todo.http
 
+import cats.data.Kleisli
 import com.schuwalow.todo.http.HTTPSpec._
 import com.schuwalow.todo.repository.TodoRepository
 import com.schuwalow.todo.testing.InMemoryTodoRepository
@@ -12,42 +13,50 @@ import zio._
 import zio.interop.catz._
 import zio.test._
 
+// @formatter:off
 object TodoServiceSpec extends DefaultRunnableSpec {
-  type TodoTask[A] = RIO[TodoRepository, A]
+  type R           = TodoRepository
+  type TodoTask[A] = RIO[R, A]
 
-  val app = TodoService.routes[TodoRepository]("").orNotFound
+  val app: Kleisli[RIO[R, *],
+                    Request[RIO[R, *]],
+                   Response[RIO[R, *]]
+                  ] = TodoService.routes[R]("").orNotFound
 
-  override def spec =
+  override def spec: Spec[ZEnv, TestFailure[Throwable], TestSuccess] =
+
     suite("TodoService")(
+
       testM("should create new todo items") {
         val req = request[TodoTask](Method.POST, "/")
-          .withEntity(json"""{"title": "Test"}""")
+                 .withEntity(json"""{"title": "Test"}""")
         checkRequest(
-          app.run(req),
-          Status.Created,
-          Some(json"""{
-            "id": 1,
-            "url": "/1",
-            "title": "Test",
-            "completed":false,
-            "order":null
-          }""")
+                      app.run(req),
+                      Status.Created,
+                      Some(json"""{
+                        "id": 1,
+                        "url": "/1",
+                        "title": "Test",
+                        "completed":false,
+                        "order":null
+                      }""")
         )
       },
+
       testM("should list all todo items") {
-        val setupReq =
-          request[TodoTask](Method.POST, "/")
-            .withEntity(json"""{"title": "Test"}""")
+        val setupReq = request[TodoTask](Method.POST, "/")
+                                        .withEntity(json"""{"title": "Test"}""")
         val req      = request[TodoTask](Method.GET, "/")
         checkRequest(
-          app.run(setupReq) *> app.run(setupReq) *> app.run(req),
-          Status.Ok,
-          Some(json"""[
-              {"id": 1, "url": "/1", "title": "Test", "completed":false, "order":null},
-              {"id": 2, "url": "/2", "title": "Test", "completed":false, "order":null}
-            ]""")
+                      app.run(setupReq) *> app.run(setupReq) *> app.run(req),
+                      Status.Ok,
+                      Some(json"""[
+                          {"id": 1, "url": "/1", "title": "Test", "completed":false, "order":null},
+                          {"id": 2, "url": "/2", "title": "Test", "completed":false, "order":null}
+                        ]""")
         )
       },
+
       testM("should delete todo items by id") {
         val setupReq  =
           request[TodoTask](Method.POST, "/")
@@ -69,6 +78,7 @@ object TodoServiceSpec extends DefaultRunnableSpec {
           Some(json"""[]""")
         )
       },
+
       testM("should delete all todo items") {
         val setupReq  =
           request[TodoTask](Method.POST, "/")
@@ -82,6 +92,7 @@ object TodoServiceSpec extends DefaultRunnableSpec {
           Some(json"""[]""")
         )
       },
+
       testM("should update todo items") {
         val setupReq  =
           request[TodoTask](Method.POST, "/")
@@ -105,5 +116,7 @@ object TodoServiceSpec extends DefaultRunnableSpec {
             ]""")
         )
       }
+
     ).provideSomeLayer[ZEnv](InMemoryTodoRepository.layer)
 }
+// @formatter:on
